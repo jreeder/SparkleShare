@@ -257,6 +257,9 @@ namespace SparkleShare {
                 string folder    = url.Replace ("history://", "").Split ("/".ToCharArray ()) [0];
                 string file_path = url.Replace ("history://" + folder + "/", "");
 
+                byte [] file_path_bytes = Encoding.Default.GetBytes (file_path);
+                file_path               = Encoding.UTF8.GetString (file_path_bytes);
+
                 file_path = Uri.UnescapeDataString (file_path);
 
                 foreach (SparkleRepoBase repo in Program.Controller.Repositories) {
@@ -469,6 +472,7 @@ namespace SparkleShare {
                         timestamp = change_set.FirstTimestamp.ToString ("H:mm") + " – " + timestamp;
                     }
 
+                    // TODO: List commit messages if there are any
                     event_entries += event_entry_html.Replace ("<!-- $event-entry-content -->", event_entry)
                         .Replace ("<!-- $event-user-name -->", change_set.User.Name)
                         .Replace ("<!-- $event-user-email -->", change_set.User.Email)

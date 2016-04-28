@@ -2,8 +2,8 @@
 //   Copyright (C) 2010  Hylke Bons <hylkebons@gmail.com>
 //
 //   This program is free software: you can redistribute it and/or modify
-//   it under the terms of the GNU Lesser General Public License as 
-//   published by the Free Software Foundation, either version 3 of the 
+//   it under the terms of the GNU Lesser General Public License as
+//   published by the Free Software Foundation, either version 3 of the
 //   License, or (at your option) any later version.
 //
 //   This program is distributed in the hope that it will be useful,
@@ -34,6 +34,7 @@ namespace SparkleLib.Git {
         private Regex progress_regex = new Regex (@"([0-9]+)%", RegexOptions.Compiled);
         private Regex speed_regex    = new Regex (@"([0-9\.]+) ([KM])iB/s", RegexOptions.Compiled);
 
+        private bool crypto_password_is_hashed = true;
 
         private string crypto_salt {
             get {
@@ -134,29 +135,29 @@ namespace SparkleLib.Git {
                 while (!this.git.StandardError.EndOfStream) {
                     string line = this.git.StandardError.ReadLine ();
                     Match match = this.progress_regex.Match (line);
-                    
+
                     double number = 0.0;
-                    double speed  = 0.0; 
+                    double speed  = 0.0;
                     if (match.Success) {
                         try {
                             number = double.Parse (match.Groups [1].Value, new CultureInfo ("en-US"));
-                            
+
                         } catch (FormatException) {
                             SparkleLogger.LogInfo ("Git", "Error parsing progress: \"" + match.Groups [1] + "\"");
                         }
-                        
+
                         // The pushing progress consists of two stages: the "Compressing
                         // objects" stage which we count as 20% of the total progress, and
                         // the "Writing objects" stage which we count as the last 80%
                         if (line.Contains ("Compressing")) {
                             // "Compressing objects" stage
                             number = (number / 100 * 20);
-                            
+
                         } else {
                             // "Writing objects" stage
                             number = (number / 100 * 80 + 20);
                             Match speed_match = this.speed_regex.Match (line);
-                            
+
                             if (speed_match.Success) {
                                 try {
                                     speed = double.Parse (speed_match.Groups [1].Value, new CultureInfo ("en-US")) * 1024;
@@ -164,10 +165,10 @@ namespace SparkleLib.Git {
                                 } catch (FormatException) {
                                     SparkleLogger.LogInfo ("Git", "Error parsing speed: \"" + speed_match.Groups [1] + "\"");
                                 }
-                                
+
                                 if (speed_match.Groups [2].Value.Equals ("M"))
                                     speed = speed * 1024;
-                            }    
+                            }
                         }
 
                     } else {
@@ -196,7 +197,7 @@ namespace SparkleLib.Git {
                         }
                     }
                 }
-            
+
             } catch (Exception) {
                 IsActive = false;
                 return false;
@@ -241,27 +242,29 @@ namespace SparkleLib.Git {
 
         public override void EnableFetchedRepoCrypto (string password)
         {
-            // Define the crypto filter in the config
-            string repo_config_file_path = new string [] { TargetFolder, ".git", "config" }.Combine ();
-            string config = File.ReadAllText (repo_config_file_path);
+            // Set up the encryption filter
+            SparkleGit git_config_smudge = new SparkleGit (TargetFolder,
+                "config filter.encryption.smudge \"openssl enc -d -aes-256-cbc -base64 -S " + this.crypto_salt +
+                " -pass file:.git/info/encryption_password\"");
 
-            string n = Environment.NewLine;
+            SparkleGit git_config_clean = new SparkleGit (TargetFolder,
+                "config filter.encryption.clean  \"openssl enc -e -aes-256-cbc -base64 -S " + this.crypto_salt +
+                " -pass file:.git/info/encryption_password\"");
 
-			string salt = this.crypto_salt;
+            git_config_smudge.StartAndWaitForExit ();
+            git_config_clean.StartAndWaitForExit ();
 
-            config += "[filter \"crypto\"]" + n +
-                "\tsmudge = openssl enc -d -aes-256-cbc -base64 -S " + salt + " -pass file:.git/password" + n +
-                "\tclean  = openssl enc -e -aes-256-cbc -base64 -S " + salt + " -pass file:.git/password" + n;
-
-            File.WriteAllText (repo_config_file_path, config);
-
-            // Pass all files through the crypto filter
+            // Pass all files through the encryption filter
             string git_attributes_file_path = new string [] { TargetFolder, ".git", "info", "attributes" }.Combine ();
-            File.AppendAllText (git_attributes_file_path, "\n* filter=crypto");
+            File.WriteAllText (git_attributes_file_path, "\n* filter=encryption");
 
             // Store the password
-            string password_file_path = new string [] { TargetFolder, ".git", "password" }.Combine ();
-            File.WriteAllText (password_file_path, password.Trim ());
+            string password_file_path = new string [] { TargetFolder, ".git", "info", "encryption_password" }.Combine ();
+
+            if (this.crypto_password_is_hashed)
+                File.WriteAllText (password_file_path, password.SHA256 (this.crypto_salt));
+            else
+                File.WriteAllText (password_file_path, password);
         }
 
 
@@ -281,30 +284,40 @@ namespace SparkleLib.Git {
 
             Process process = new Process ();
             process.EnableRaisingEvents              = true;
+            process.StartInfo.FileName               = "openssl";
             process.StartInfo.WorkingDirectory       = TargetFolder;
             process.StartInfo.UseShellExecute        = false;
             process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardInput  = true;
             process.StartInfo.CreateNoWindow         = true;
 
-            process.StartInfo.FileName  = "openssl";
-            process.StartInfo.Arguments = "enc -d -aes-256-cbc -base64 -pass stdin " +
-                "-in \"" + password_check_file_path + "\"";
+            string [] possible_passwords = new string [] {
+                password.SHA256 (this.crypto_salt),
+                password
+            };
 
-            SparkleLogger.LogInfo ("Cmd | " + System.IO.Path.GetFileName (process.StartInfo.WorkingDirectory),
-                System.IO.Path.GetFileName (process.StartInfo.FileName) + " " + process.StartInfo.Arguments);
+            int i = 0;
+            foreach (string possible_password in possible_passwords) {
+                process.StartInfo.Arguments = "enc -d -aes-256-cbc -base64 -pass pass:\"" + possible_password + "\"" +
+                    " -in \"" + password_check_file_path + "\"";
 
-            process.Start ();
-            process.StandardInput.WriteLine (password);
-            process.WaitForExit ();
+                SparkleLogger.LogInfo ("Cmd | " + System.IO.Path.GetFileName (process.StartInfo.WorkingDirectory),
+                    System.IO.Path.GetFileName (process.StartInfo.FileName) + " " + process.StartInfo.Arguments);
 
-            if (process.ExitCode == 0) {
-                File.Delete (password_check_file_path);
-                return true;
+                process.Start ();
+                process.WaitForExit ();
 
-            } else {
-                return false;
+                if (process.ExitCode == 0) {
+                    if (i > 0)
+                        this.crypto_password_is_hashed = false;
+
+                    File.Delete (password_check_file_path);
+                    return true;
+                }
+
+                i++;
             }
+
+            return false;
         }
 
 
@@ -324,7 +337,7 @@ namespace SparkleLib.Git {
                 try {
                     Directory.Delete (TargetFolder, true /* Recursive */ );
                     SparkleLogger.LogInfo ("Fetcher", "Deleted '" + TargetFolder + "'");
-                    
+
                 } catch (Exception e) {
                     SparkleLogger.LogInfo ("Fetcher", "Failed to delete '" + TargetFolder + "'", e);
                 }
@@ -346,10 +359,10 @@ namespace SparkleLib.Git {
         private void InstallConfiguration ()
         {
             string [] settings = new string [] {
+                "core.autocrlf input",
                 "core.quotepath false", // Don't quote "unusual" characters in path names
                 "core.ignorecase false", // Be case sensitive explicitly to work on Mac
                 "core.filemode false", // Ignore permission changes
-                "core.autocrlf false", // Don't change file line endings
                 "core.precomposeunicode true", // Use the same Unicode form on all filesystems
                 "core.safecrlf false",
                 "core.excludesfile \"\"",
@@ -360,6 +373,9 @@ namespace SparkleLib.Git {
                 "pack.windowMemory 128m",
                 "push.default matching"
             };
+
+            if (SparkleBackend.Platform == PlatformID.Win32NT)
+                settings [0] = "core.autocrlf true";
 
             foreach (string setting in settings) {
                 SparkleGit git_config = new SparkleGit (TargetFolder, "config " + setting);
@@ -423,7 +439,7 @@ namespace SparkleLib.Git {
                     writer.WriteLine ("*." + extension + " -delta");
                     writer.WriteLine ("*." + extension.ToUpper () + " -delta");
                 }
-                
+
                 writer.WriteLine ("*.txt text");
                 writer.WriteLine ("*.TXT text");
             }

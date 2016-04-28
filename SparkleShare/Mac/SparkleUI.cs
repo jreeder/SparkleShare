@@ -29,25 +29,33 @@ namespace SparkleShare {
         public SparkleSetup Setup;
         public SparkleBubbles Bubbles;
         public SparkleAbout About;
+        public SparkleNote Note;
 		
-		public static NSFont Font = NSFontManager.SharedFontManager.FontWithFamily (
-			"Lucida Grande", NSFontTraitMask.Condensed, 0, 13);
-		
-        public static NSFont BoldFont = NSFontManager.SharedFontManager.FontWithFamily (
-			"Lucida Grande", NSFontTraitMask.Bold, 0, 13);
-		
+        public static string FontName = "Helvetica Neue";
 
         public SparkleUI ()
         {
+            if (Environment.OSVersion.Version.Major < 14)
+                FontName = "Lucida Grande";
+
             Program.Controller.Invoke (() => {
-                NSWorkspace.SharedWorkspace.SetIconforFile (
-                    NSImage.ImageNamed ("sparkleshare-folder.icns"), Program.Controller.FoldersPath, 0);
+                if (Environment.OSVersion.Version.Major >= 14) {
+                    NSWorkspace.SharedWorkspace.SetIconforFile (
+                        NSImage.ImageNamed ("sparkleshare-folder-yosemite.icns"),
+                        Program.Controller.FoldersPath, 0);
+
+                } else {
+                    NSWorkspace.SharedWorkspace.SetIconforFile (
+                        NSImage.ImageNamed ("sparkleshare-folder.icns"),
+                        Program.Controller.FoldersPath, 0);
+                }
 
                 NSApplication.SharedApplication.ApplicationIconImage = NSImage.ImageNamed ("sparkleshare-app.icns");
     
                 Setup      = new SparkleSetup ();
                 EventLog   = new SparkleEventLog ();
                 About      = new SparkleAbout ();
+                Note       = new SparkleNote ();
                 Bubbles    = new SparkleBubbles ();
                 StatusIcon = new SparkleStatusIcon ();
             });
@@ -64,8 +72,8 @@ namespace SparkleShare {
 
         public void UpdateDockIconVisibility ()
         {
-            if (Setup.IsVisible || EventLog.IsVisible || About.IsVisible)
-                NSApplication.SharedApplication.ActivationPolicy = NSApplicationActivationPolicy.Regular;
+//          if (Setup.IsVisible || EventLog.IsVisible || About.IsVisible)
+//              NSApplication.SharedApplication.ActivationPolicy = NSApplicationActivationPolicy.Regular;
         }
     }
 

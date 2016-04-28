@@ -45,6 +45,26 @@ namespace SparkleLib {
         }
 
 
+        public static string SHA256 (this string s)
+        {
+            SHA256 sha256        = new SHA256CryptoServiceProvider ();
+            byte [] bytes        = ASCIIEncoding.Default.GetBytes (s);
+            byte [] sha256_bytes = sha256.ComputeHash (bytes);
+
+            return BitConverter.ToString (sha256_bytes).ToLower ().Replace ("-", "");
+        }
+
+
+        public static string SHA256 (this string s, string salt)
+        {
+            SHA256 sha256        = new SHA256CryptoServiceProvider ();
+            byte [] bytes        = ASCIIEncoding.Default.GetBytes (s + salt);
+            byte [] sha256_bytes = sha256.ComputeHash (bytes);
+
+            return BitConverter.ToString (sha256_bytes).ToLower ().Replace ("-", "");
+        }
+
+
         public static string MD5 (this string s)
         {
             MD5 md5           = new MD5CryptoServiceProvider ();
@@ -75,6 +95,52 @@ namespace SparkleLib {
         public static bool IsSymlink (this FileSystemInfo file)
         {
             return ((file.Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint);
+        }
+
+
+        public static string ToPrettyDate (this DateTime timestamp)
+        {
+            TimeSpan time_diff = DateTime.Now.Subtract (timestamp);
+            int day_diff       = (int) time_diff.TotalDays;                
+            DateTime yesterday = DateTime.Today.AddDays (-1);
+
+            if (timestamp >= yesterday && timestamp < DateTime.Today) {
+                return "yesterday at " + timestamp.ToString ("HH:mm");
+
+            } else if (day_diff == 0) {
+                return "today at " + timestamp.ToString ("HH:mm");
+            
+            } else if (day_diff < 7) {
+                return timestamp.ToString ("dddd");
+            
+            } else if (day_diff < 31) {
+                if (day_diff < 14)
+                    return "last week";
+                else
+                    return string.Format ("{0} weeks ago", Math.Ceiling ((double) day_diff / 7));
+
+            } else if (day_diff < 62) {
+                return "last month";
+
+            } else { 
+                return string.Format ("{0} months ago", Math.Ceiling ((double) day_diff / 31));
+            }
+        }
+
+
+        public static string ReplaceUnderscoreWithSpace (this string s)
+        {
+            int len = s.Length, lead = 0, trail = 0;
+            for (int i = 0; i < len && s[i] == '_'; i++, lead++)
+                ; // nop
+            for (int i = len - 1; i >= lead && s[i] == '_'; i--, trail++)
+                ; // nop
+            if (lead == 0 && trail == 0)
+                return s.Replace("_", " "); // fast code path
+            else
+                return s.Substring (0, lead) +
+                       s.Substring (lead, len - lead - trail).Replace ("_", " ") +
+                       s.Substring (len - trail, trail);
         }
     }
 }

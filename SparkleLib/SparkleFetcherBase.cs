@@ -95,6 +95,7 @@ namespace SparkleLib {
             "~*.ppt", "~*.PPT", "~*.pptx", "~*.PPTX",
             "~*.xls", "~*.XLS", "~*.xlsx", "~*.XLSX",
             "~*.doc", "~*.DOC", "~*.docx", "~*.DOCX",
+            "~$*",
             "*.a$v", // QuarkXPress
             "*/CVS/*", ".cvsignore", "*/.cvsignore", // CVS
             "/.svn/*", "*/.svn/*", // Subversion
@@ -191,7 +192,8 @@ namespace SparkleLib {
                 Identifier = CreateIdentifier ();
                 File.WriteAllText (identifier_path, Identifier);
 
-                CreateInitialChangeSet ();
+                if (IsFetchedRepoEmpty)
+                    CreateInitialChangeSet ();
             }
 
             File.SetAttributes (identifier_path, FileAttributes.Hidden);

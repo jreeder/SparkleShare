@@ -71,14 +71,15 @@ namespace SparkleLib {
             Server = server;
             this.channels.Add (folder_identifier);
 
-            this.reconnect_timer.Elapsed += delegate {
-                if (!IsConnected && !IsConnecting)
-                    Reconnect ();
-            };
-
+            this.reconnect_timer.Elapsed += OnTimerElapsed;
             this.reconnect_timer.Start ();
         }
 
+        private void OnTimerElapsed(object sender, EventArgs args)
+        {
+            if (!IsConnected && !IsConnecting)
+                Reconnect ();
+        }
 
         public void Announce (SparkleAnnouncement announcement)
         {
@@ -164,7 +165,14 @@ namespace SparkleLib {
 
         public virtual void Dispose ()
         {
-            this.reconnect_timer.Dispose ();
+            if (this.reconnect_timer != null) {
+                this.reconnect_timer.Stop ();
+
+                this.reconnect_timer.Elapsed -= OnTimerElapsed;
+                this.reconnect_timer.Dispose ();
+
+                this.reconnect_timer = null;
+            }
         }
 
 

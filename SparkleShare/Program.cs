@@ -46,8 +46,7 @@ namespace SparkleShare {
                 string n = Environment.NewLine;
 
                 Console.WriteLine (n +
-                    "SparkleShare is a collaboration and sharing tool that is" + n +
-                    "designed to keep things simple and to stay out of your way." + n +
+                    "Share and collaborate by syncing with any Git repository instantly." + n +
                     n +
                     "Version: " + SparkleLib.SparkleBackend.Version + n +
                     "Copyright (C) 2010 Hylke Bons and others" + n +
@@ -67,23 +66,30 @@ namespace SparkleShare {
                 Environment.Exit (-1);
             }
 
-            try {
-                Controller = new SparkleController ();
-                Controller.Initialize ();
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
-                UI = new SparkleUI ();
-                UI.Run ();
-            
-            } catch (Exception e) {
-                SparkleLogger.WriteCrashReport (e);
-                Environment.Exit (-1);
-            }
-         
+            Controller = new SparkleController ();
+            Controller.Initialize ();
+
+            UI = new SparkleUI ();
+            UI.Run ();
+
             #if !__MonoCS__
             // Suppress assertion messages in debug mode
             GC.Collect (GC.MaxGeneration, GCCollectionMode.Forced);
             GC.WaitForPendingFinalizers ();
             #endif
+        }
+
+        private static void OnUnhandledException (object sender, UnhandledExceptionEventArgs exception_args)
+        {
+            try {
+                Exception e = (Exception) exception_args.ExceptionObject;
+                SparkleLogger.WriteCrashReport (e);
+            
+            } finally {
+                Environment.Exit (-1);
+            }
         }
     }
 }

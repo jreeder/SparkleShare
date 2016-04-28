@@ -332,7 +332,7 @@ namespace SparkleShare {
                 SyncingFolder = remote_path.Substring (0, remote_path.Length - 4);
 
 			SyncingFolder         = SyncingFolder.Replace ("-crypto", "");
-			SyncingFolder         = SyncingFolder.Replace ("_", " ");
+			SyncingFolder         = SyncingFolder.ReplaceUnderscoreWithSpace ();
             ProgressBarPercentage = 1.0;
 
             ChangePageEvent (PageType.Syncing, null);
@@ -428,7 +428,7 @@ namespace SparkleShare {
                 SyncingFolder = PendingInvite.RemotePath.Substring (0, PendingInvite.RemotePath.Length - 4);
 
 			SyncingFolder   = SyncingFolder.Replace ("-crypto", "");
-			SyncingFolder   = SyncingFolder.Replace ("_", " ");
+			SyncingFolder   = SyncingFolder.ReplaceUnderscoreWithSpace ();
             PreviousAddress = PendingInvite.Address;
             PreviousPath    = PendingInvite.RemotePath;
 
@@ -508,17 +508,17 @@ namespace SparkleShare {
 
         public void CheckCryptoSetupPage (string password)
         {
-            bool is_valid_password = (password.Length > 0 && !password.StartsWith (" ") && !password.EndsWith (" "));
-            UpdateCryptoSetupContinueButtonEvent (is_valid_password);
+            new Thread (() => {
+                bool is_valid_password = (password.Length > 0 && !password.StartsWith (" ") && !password.EndsWith (" "));
+                UpdateCryptoSetupContinueButtonEvent (is_valid_password);
+            }).Start ();
         }
 
 
         public void CheckCryptoPasswordPage (string password)
         {
-            new Thread(() => {
-                bool is_password_correct = Program.Controller.CheckPassword (password);
-                UpdateCryptoPasswordContinueButtonEvent (is_password_correct);
-            }).Start ();
+            bool is_password_correct = Program.Controller.CheckPassword (password);
+            UpdateCryptoPasswordContinueButtonEvent (is_password_correct);
         }
 
 
@@ -556,7 +556,7 @@ namespace SparkleShare {
         public void ShowFilesClicked ()
         {
             string folder_name = Path.GetFileName (PreviousPath);
-            folder_name        = folder_name.Replace ("_", " ");
+            folder_name        = folder_name.ReplaceUnderscoreWithSpace ();
 
             if (PreviousPath.EndsWith ("-crypto"))
                 folder_name = folder_name.Replace ("-crypto", "");
@@ -588,7 +588,7 @@ namespace SparkleShare {
 
         private bool IsValidEmail (string email)
         {
-            return new Regex (@"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$", RegexOptions.IgnoreCase).IsMatch (email);
+            return new Regex (@"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]+$", RegexOptions.IgnoreCase).IsMatch (email);
         }
     }
 }

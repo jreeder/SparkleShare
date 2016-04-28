@@ -138,7 +138,7 @@ namespace SparkleLib.Git {
 
         public override double Size {
             get {
-                string file_path = new string [] { LocalPath, ".git", "repo_size" }.Combine ();
+                string file_path = new string [] { LocalPath, ".git", "info", "size" }.Combine ();
 
                 try {
                     string size = File.ReadAllText (file_path);
@@ -153,7 +153,7 @@ namespace SparkleLib.Git {
 
         public override double HistorySize {
             get {
-                string file_path = new string [] { LocalPath, ".git", "repo_history_size" }.Combine ();
+                string file_path = new string [] { LocalPath, ".git", "info", "history_size" }.Combine ();
 
                 try {
                     string size = File.ReadAllText (file_path);
@@ -171,8 +171,8 @@ namespace SparkleLib.Git {
             double size         = CalculateSizes (new DirectoryInfo (LocalPath));
             double history_size = CalculateSizes (new DirectoryInfo (Path.Combine (LocalPath, ".git")));
 
-            string size_file_path = new string [] { LocalPath, ".git", "repo_size" }.Combine ();
-            string history_size_file_path = new string [] { LocalPath, ".git", "repo_history_size" }.Combine ();
+            string size_file_path = new string [] { LocalPath, ".git", "info", "size" }.Combine ();
+            string history_size_file_path = new string [] { LocalPath, ".git", "info", "history_size" }.Combine ();
 
             File.WriteAllText (size_file_path, size.ToString ());
             File.WriteAllText (history_size_file_path, history_size.ToString ());
@@ -235,7 +235,10 @@ namespace SparkleLib.Git {
                 return false;
             }
 
-            string message = FormatCommitMessage ();
+            string message = base.status_message.Replace ("\"", "\\\"");
+
+            if (string.IsNullOrEmpty (message))
+                message = FormatCommitMessage ();
 
             if (message != null)
                 Commit (message);
@@ -731,7 +734,8 @@ namespace SparkleLib.Git {
                 Error = ErrorStatus.HostIdentityChanged;
                 
             } else if (line.StartsWith ("Permission denied") ||
-                       line.StartsWith ("ssh_exchange_identification: Connection closed by remote host")) {
+                       line.StartsWith ("ssh_exchange_identification: Connection closed by remote host") ||
+                       line.StartsWith ("The authenticity of host")) {
 
                 Error = ErrorStatus.AuthenticationFailed;
                 
@@ -742,7 +746,8 @@ namespace SparkleLib.Git {
                 Error = ErrorStatus.IncompatibleClientServer;
                 
             } else if (line.StartsWith ("error: Disk space exceeded") ||
-                       line.EndsWith ("No space left on device")) {
+                       line.EndsWith ("No space left on device") ||
+                       line.EndsWith ("file write error (Disk quota exceeded)")) {
 
                 Error = ErrorStatus.DiskSpaceExceeded;
             }
@@ -753,6 +758,13 @@ namespace SparkleLib.Git {
             
             } else {
                 return false;
+            }
+        }
+
+
+        public override List<SparkleChange> UnsyncedChanges {
+          get {
+              return ParseStatus ();
             }
         }
 
@@ -774,7 +786,7 @@ namespace SparkleLib.Git {
 
             if (path == null) {
                 git = new SparkleGit (LocalPath, "log --since=1.month --raw --find-renames --date=iso " +
-                    "--format=medium --no-color -m --first-parent");
+                    "--format=medium --no-color --no-merges");
 
             } else {
                 path = path.Replace ("\\", "/");
@@ -787,7 +799,7 @@ namespace SparkleLib.Git {
 
             if (path == null && string.IsNullOrWhiteSpace (output)) {
                 git = new SparkleGit (LocalPath, "log -n 75 --raw --find-renames --date=iso " +
-                    "--format=medium --no-color -m --first-parent");
+                    "--format=medium --no-color --no-merges");
 
                 output = git.StartAndReadStandardOutput ();
             }
@@ -1082,53 +1094,80 @@ namespace SparkleLib.Git {
         }
 
 
-        // Creates a pretty commit message based on what has changed
-        private string FormatCommitMessage ()
+
+        private List<SparkleChange> ParseStatus ()
         {
-            int count      = 0;
-            string message = "";
+            List<SparkleChange> changes = new List<SparkleChange> ();
 
             SparkleGit git_status = new SparkleGit (LocalPath, "status --porcelain");
             git_status.Start ();
-
+            
             while (!git_status.StandardOutput.EndOfStream) {
                 string line = git_status.StandardOutput.ReadLine ();
                 line        = line.Trim ();
-
+                
                 if (line.EndsWith (".empty") || line.EndsWith (".empty\""))
                     line = line.Replace (".empty", "");
 
+                SparkleChange change;
+                
                 if (line.StartsWith ("R")) {
-                    string path = line.Substring (3, line.IndexOf (" -> ") - 3).Trim ("\"".ToCharArray ());
-                    string moved_to_path = line.Substring (line.IndexOf (" -> ") + 4).Trim ("\"".ToCharArray ());
+                    string path = line.Substring (3, line.IndexOf (" -> ") - 3).Trim ("\" ".ToCharArray ());
+                    string moved_to_path = line.Substring (line.IndexOf (" -> ") + 4).Trim ("\" ".ToCharArray ());
+                    
+                    change = new SparkleChange () {
+                        Type = SparkleChangeType.Moved,
+                        Path = EnsureSpecialCharacters (path),
+                        MovedToPath = EnsureSpecialCharacters (moved_to_path)
+                    };
+                    
+                } else {
+                    string path = line.Substring (2).Trim ("\" ".ToCharArray ());
+                    change = new SparkleChange () { Path = EnsureSpecialCharacters (path) };
+                    change.Type = SparkleChangeType.Added;
 
-                    message +=  "< ‘" + EnsureSpecialCharacters (path) + "’\n";
-                    message +=  "> ‘" + EnsureSpecialCharacters (moved_to_path) + "’\n";
+                    if (line.StartsWith ("M")) {
+                        change.Type = SparkleChangeType.Edited;
+                        
+                    } else if (line.StartsWith ("D")) {
+                        change.Type = SparkleChangeType.Deleted;
+                    }
+                }
+
+                changes.Add (change);
+            }
+            
+            git_status.StandardOutput.ReadToEnd ();
+            git_status.WaitForExit ();
+
+            return changes;
+        }
+
+
+        // Creates a pretty commit message based on what has changed
+        private string FormatCommitMessage ()
+        {
+            string message = "";
+
+            foreach (SparkleChange change in ParseStatus ()) {
+                if (change.Type == SparkleChangeType.Moved) {
+                    message +=  "< ‘" + EnsureSpecialCharacters (change.Path) + "’\n";
+                    message +=  "> ‘" + EnsureSpecialCharacters (change.MovedToPath) + "’\n";
 
                 } else {
-                    if (line.StartsWith ("M")) {
+                    if (change.Type == SparkleChangeType.Edited) {
                         message += "/";
 
-                    } else if (line.StartsWith ("D")) {
+                    } else if (change.Type == SparkleChangeType.Deleted) {
                         message += "-";
 
-                    } else {
+                    } else if (change.Type == SparkleChangeType.Added) {
                         message += "+";
                     }
 
-                    string path = line.Substring (3).Trim ("\"".ToCharArray ());
-                    message += " ‘" + EnsureSpecialCharacters (path) + "’\n";
-                }
-
-                count++;
-                if (count == 10) {
-                    message += "...\n";
-                    break;
+                    message += " ‘" + change.Path + "’\n";
                 }
             }
-
-            git_status.StandardOutput.ReadToEnd ();
-            git_status.WaitForExit ();
 
             if (string.IsNullOrWhiteSpace (message))
                 return null;

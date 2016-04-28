@@ -1,3 +1,20 @@
+1.5.0 for Linux, Mac and Windows (Tue Dec 22, 2015):
+
+     Hylke:
+     - Mac UI updates to integrate well with Yosemite
+     - Per folder sync status in icon menu
+     - Add ability to pause sync and add a commit message on resume
+     - Remove dock icon on Mac and force windows on top
+     - Update certificate for Gravatar
+     - Resizable "Recent Changes" window on Windows
+     - Several stability fixes
+     - Improvements to filesystem watcher and exclude list
+     - Use more secure 4096 bit SSH keys
+     - Use hashed and salted password to encrypt files
+     - Fix change attribution in Recent Changes window on merges
+     - Fix disabled Continue button when entering encryption password
+
+
 1.4.0 for Linux, Mac and Windows (Sun Apr 20, 2014):
 
      Hylke:

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>10.0.0</ProductVersion>
+    <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{CF5BC8DB-A633-4FCC-8A3E-E3AC9B59FABC}</ProjectGuid>
     <ProjectTypeGuids>{948B3504-5B70-4649-8FE4-BDE1FB46EC69};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -12,9 +12,29 @@
     <AssemblyName>SparkleShare</AssemblyName>
     <ReleaseVersion>
     </ReleaseVersion>
+    <SuppressXamMacMigration>True</SuppressXamMacMigration>
+    <SuppressXamMacUpsell>True</SuppressXamMacUpsell>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
+    <Optimize>False</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <CustomCommands>
+      <CustomCommands>
+        <Command type="AfterBuild" command="${ProjectDir}/postBuild.sh ${TargetDir}/${SolutionName}.app" />
+      </CustomCommands>
+    </CustomCommands>
+    <EnableCodeSigning>False</EnableCodeSigning>
+    <CreatePackage>False</CreatePackage>
+    <EnablePackageSigning>False</EnablePackageSigning>
+    <IncludeMonoRuntime>false</IncludeMonoRuntime>
+    <ConsolePause>False</ConsolePause>
+    <UseSGen>false</UseSGen>
+    <UseRefCounting>false</UseRefCounting>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Optimize>False</Optimize>
     <OutputPath>bin\Debug</OutputPath>
     <DefineConstants>DEBUG</DefineConstants>
@@ -22,26 +42,33 @@
     <WarningLevel>4</WarningLevel>
     <CustomCommands>
       <CustomCommands>
-        <Command type="AfterBuild" command="mkdir -p ${TargetDir}/${SolutionName}.app/Contents/Frameworks &amp;&amp; cp -R git ${TargetDir}/${SolutionName}.app/Contents/Resources &amp;&amp; cp -R SparkleShareInviteOpener.app ${TargetDir}/${SolutionName}.app/Contents/Resources" externalConsole="True" />
+        <Command type="AfterBuild" command="${ProjectDir}/postBuild.sh ${TargetDir}/${SolutionName}.app" />
       </CustomCommands>
     </CustomCommands>
     <EnableCodeSigning>False</EnableCodeSigning>
     <CreatePackage>False</CreatePackage>
     <EnablePackageSigning>False</EnablePackageSigning>
-    <IncludeMonoRuntime>True</IncludeMonoRuntime>
+    <IncludeMonoRuntime>false</IncludeMonoRuntime>
     <ConsolePause>False</ConsolePause>
-    <CodeSigningKey>Mac Developer</CodeSigningKey>
-    <PackageSigningKey>3rd Party Mac Developer Installer</PackageSigningKey>
+    <DebugSymbols>true</DebugSymbols>
+    <UseSGen>false</UseSGen>
+    <UseRefCounting>false</UseRefCounting>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugType>none</DebugType>
-    <Optimize>False</Optimize>
-    <OutputPath>bin\Debug</OutputPath>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'ReleaseDist|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\ReleaseDist</OutputPath>
     <WarningLevel>4</WarningLevel>
-    <IncludeMonoRuntime>False</IncludeMonoRuntime>
-    <EnablePackageSigning>False</EnablePackageSigning>
-    <EnableCodeSigning>False</EnableCodeSigning>
-    <CreatePackage>False</CreatePackage>
+    <UseSGen>false</UseSGen>
+    <IncludeMonoRuntime>false</IncludeMonoRuntime>
+    <EnablePackageSigning>false</EnablePackageSigning>
+    <CustomCommands>
+      <CustomCommands>
+        <Command type="AfterBuild" command="${ProjectDir}/postBuild.sh ${TargetDir}/${SolutionName}.app" />
+        <Command type="AfterBuild" command="${ProjectDir}/packReleaseDist.sh ${TargetDir}/${SolutionName}.app" />
+      </CustomCommands>
+    </CustomCommands>
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <CreatePackage>false</CreatePackage>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -100,6 +127,10 @@
       <Link>SparkleKeys.cs</Link>
     </Compile>
     <Compile Include="..\SparkleAvatars.cs" />
+    <Compile Include="..\SparkleNoteController.cs">
+      <Link>SparkleNoteController.cs</Link>
+    </Compile>
+    <Compile Include="SparkleNote.cs" />
   </ItemGroup>
   <ItemGroup>
     <InterfaceDefinition Include="MainMenu.xib" xmlns="" />
@@ -127,6 +158,9 @@
     </Content>
     <Content Include="..\Common\HTML\jquery.js">
       <Link>HTML\jquery.js</Link>
+    </Content>
+    <Content Include="Resources\sparkleshare-folder-yosemite.icns">
+      <Link>sparkleshare-folder-yosemite.icns</Link>
     </Content>
   </ItemGroup>
   <ItemGroup>
@@ -166,14 +200,9 @@
     <BundleResource Include="Resources\tutorial-slide-3.png">
       <Link>Resources\tutorial-slide-3.png</Link>
     </BundleResource>
-    <BundleResource Include="Resources\process-syncing-active.png" />
-    <BundleResource Include="Resources\process-syncing-down-active.png" />
     <BundleResource Include="Resources\process-syncing-down.png" />
-    <BundleResource Include="Resources\process-syncing-error-active.png" />
     <BundleResource Include="Resources\process-syncing-error.png" />
-    <BundleResource Include="Resources\process-syncing-idle-active.png" />
     <BundleResource Include="Resources\process-syncing-idle.png" />
-    <BundleResource Include="Resources\process-syncing-up-active.png" />
     <BundleResource Include="Resources\process-syncing-up.png" />
     <BundleResource Include="Resources\process-syncing.png" />
     <BundleResource Include="..\Common\Pixmaps\user-icon-default.png">
@@ -182,14 +211,9 @@
     <BundleResource Include="..\Common\Pixmaps\side-splash%402x.png">
       <Link>Resources\side-splash%402x.png</Link>
     </BundleResource>
-    <BundleResource Include="Resources\process-syncing-active%402x.png" />
-    <BundleResource Include="Resources\process-syncing-down-active%402x.png" />
     <BundleResource Include="Resources\process-syncing-down%402x.png" />
-    <BundleResource Include="Resources\process-syncing-error-active%402x.png" />
     <BundleResource Include="Resources\process-syncing-error%402x.png" />
-    <BundleResource Include="Resources\process-syncing-idle-active%402x.png" />
     <BundleResource Include="Resources\process-syncing-idle%402x.png" />
-    <BundleResource Include="Resources\process-syncing-up-active%402x.png" />
     <BundleResource Include="Resources\process-syncing-up%402x.png" />
     <BundleResource Include="Resources\process-syncing%402x.png" />
     <BundleResource Include="..\Common\Pixmaps\about%402x.png">
@@ -261,6 +285,12 @@
     </BundleResource>
     <BundleResource Include="..\Common\Plugins\planio%402x.png">
       <Link>Plugins\planio%402x.png</Link>
+    </BundleResource>
+    <BundleResource Include="..\Common\Pixmaps\text-balloon.png">
+      <Link>Resources\text-balloon.png</Link>
+    </BundleResource>
+    <BundleResource Include="..\Common\Pixmaps\text-balloon%402x.png">
+      <Link>Resources\text-balloon%402x.png</Link>
     </BundleResource>
   </ItemGroup>
 </Project>

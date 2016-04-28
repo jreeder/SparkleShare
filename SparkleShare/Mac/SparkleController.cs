@@ -25,6 +25,7 @@ using MonoMac.AppKit;
 
 using Mono.Unix.Native;
 using SparkleLib;
+using System.Collections.Generic;
 
 namespace SparkleShare {
 
@@ -58,22 +59,40 @@ namespace SparkleShare {
             SparkleRepoBase.UseCustomWatcher = true;
             this.watcher = new SparkleMacWatcher (Program.Controller.FoldersPath);
 
-            this.watcher.Changed += delegate (string path) {
-                FileSystemEventArgs fse_args = new FileSystemEventArgs (WatcherChangeTypes.Changed, path, "Unknown_File");
-                FileActivityTask [] tasks = new FileActivityTask [Repositories.Length];
-
-                // FIXME: There are cases where the wrong repo is triggered, so
-                // we trigger all of them for now. Causes only slightly more overhead
-                int i = 0;
-                foreach (SparkleRepoBase repo in Repositories) {
-                    tasks [i] = MacActivityTask (repo, fse_args);
-                    tasks [i] ();
-                    i++;
-                }
-            };
-
+            this.watcher.Changed += OnFilesChanged;
         }
 
+
+        private void OnFilesChanged (List<string> changed_files_in_basedir)
+        {
+            List<string> triggered_repos = new List<string> ();
+
+            foreach (string file in changed_files_in_basedir) {
+                string repo_name;
+                int path_sep_index = file.IndexOf (Path.DirectorySeparatorChar);
+
+                if (path_sep_index >= 0)
+                    repo_name = file.Substring (0, path_sep_index);
+                else
+                    repo_name = file;
+
+                repo_name = Path.GetFileNameWithoutExtension (repo_name);
+                SparkleRepoBase repo = GetRepoByName (repo_name);
+
+                if (repo == null)
+                    continue;
+
+                if (!triggered_repos.Contains (repo_name)) {
+                    triggered_repos.Add (repo_name);
+
+                    FileActivityTask task = MacActivityTask (repo,
+                        new FileSystemEventArgs (WatcherChangeTypes.Changed, file, "Unknown"));
+                    
+                    task ();
+                }
+
+            }
+        }
 
         private delegate void FileActivityTask ();
 
@@ -116,8 +135,16 @@ namespace SparkleShare {
             if (!Directory.Exists (Program.Controller.FoldersPath)) {
                 Directory.CreateDirectory (Program.Controller.FoldersPath);
 
-                NSWorkspace.SharedWorkspace.SetIconforFile (NSImage.ImageNamed ("sparkleshare-folder.icns"),
-                    Program.Controller.FoldersPath, 0);
+                if (Environment.OSVersion.Version.Major >= 14) {
+                    NSWorkspace.SharedWorkspace.SetIconforFile (
+                        NSImage.ImageNamed ("sparkleshare-folder-yosemite.icns"),
+                        Program.Controller.FoldersPath, 0);
+
+                } else {
+                    NSWorkspace.SharedWorkspace.SetIconforFile (
+                        NSImage.ImageNamed ("sparkleshare-folder.icns"),
+                        Program.Controller.FoldersPath, 0);
+                }
 
                 Syscall.chmod (Program.Controller.FoldersPath, (FilePermissions) 448); // 448 -> 700
 
